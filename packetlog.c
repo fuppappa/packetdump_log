@@ -18,13 +18,15 @@
 #include <linux/mm.h>
 #include <linux/path.h> /* Needed for  */
 #include <linux/mount.h> /* Needed for kern_path */
+#include <linuc/time.h> /*Needed for func timestamp*/
+
+
 
 MODULE_AUTHOR("yfujieda");
 MODULE_DESCRIPTION("packet dump");
 MODULE_LICENSE("GPL");
 
 // my linux kernel version is 4.4.0
-
 
 
 
@@ -36,6 +38,38 @@ struct ethhdr *ether_header;
 struct skbbf *skb_bf;
 static struct nf_hook_ops nfhook;
 
+
+
+//get timestamp
+
+static int timestamp() {
+  struct timespac time;
+	long timestamp;
+
+  //this fuc sets value to an argument
+	getmstimeofday(&time);
+
+	timestamp = time
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // write_log modules
 
 
@@ -45,6 +79,7 @@ static struct nf_hook_ops nfhook;
 int kern_path(const char *name, unsigned int flags, struct path *path)
 */
 
+
 void file_open(struct file *file)
 {
 	char filename = "/home/yfujeida/log/lkm/packetlog/log.txt"
@@ -53,7 +88,7 @@ void file_open(struct file *file)
   old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE, 0);
+	file = filp_open(filename, O_CREAT | O_WRONLY | O_APPEND | O_LARGEFILE, 0);
 
 	if (IS_ERR(file)){
 		printk(KERN_WARNING "[DEBUG]%d sys_write_log > file->f_pos is negative\n",IS_ERR(file) );
@@ -70,6 +105,7 @@ void file_close()
 }
 
 
+//sprit function file_open file_close
 
 void write_buf(char *buf)
 {
