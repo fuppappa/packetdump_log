@@ -6,11 +6,12 @@ VERBOSE = 0
 packetmod-objs := packetlog.o
 ANDROID_CSET = ARCH=arm CROSS_COMPILE=arm-eabi-
 
-default:
-ifeq($(OS), linux)
+android:
+	$(MAKE) $(ANDROID_CSETS) -C $(DRODID_KERNEL_DIR) M=$(PWD) KBUILD_VERBOSE=$(VERBOSE) modules
+
+linux:
 	$(MAKE) -C $(KERNEL_DIR) M=$(PWD) KBUILD_VERBOSE=$(VERBOSE) modules
-else
-  $(MAKE) $(ANDROID_CSETS) -C $(KERNEL_DIR) M=$(PWD) KBUILD_VERBOSE=$(VERBOSE) modules
+
 
 clean:
 	$(MAKE) -C $(KERNEL_DIR) M=$(PWD) clean
