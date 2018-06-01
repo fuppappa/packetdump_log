@@ -18,7 +18,7 @@
 #include <linux/mm.h>
 #include <linux/path.h> /* Needed for  */
 #include <linux/mount.h> /* Needed for kern_path */
-#include <linuc/time.h> /*Needed for func timestamp*/
+//#include <linux/time.h> /*Needed for func timestamp*/
 
 
 
@@ -29,7 +29,9 @@ MODULE_LICENSE("GPL");
 // my linux kernel version is 4.4.0
 
 
-
+const char *filename = "/home/yfujeida/log/lkm/packetlog/log.txt";
+mm_segment_t old_fs;
+struct file *file;
 struct ethhdr *mac;
 struct iphdr *ip;
 struct tcphdr *tcp;
@@ -38,7 +40,7 @@ struct ethhdr *ether_header;
 struct skbbf *skb_bf;
 static struct nf_hook_ops nfhook;
 
-
+/*
 
 //get timestamp
 
@@ -51,23 +53,8 @@ static int timestamp() {
 
 	timestamp = time
 
-
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+*/
 
 
 // write_log modules
@@ -80,26 +67,28 @@ int kern_path(const char *name, unsigned int flags, struct path *path)
 */
 
 
-void file_open(struct file *file)
+void file_open(void)
 {
-	char filename = "/home/yfujeida/log/lkm/packetlog/log.txt"
-	mm_segment_t old_fs;
 
   old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	file = filp_open(filename, O_CREAT | O_WRONLY | O_APPEND | O_LARGEFILE, 0);
+	file = filp_open(filename, O_CREAT | O_WRONLY | O_APPEND | O_LARGEFILE,  S_IRWXU | S_IRWXG | S_IRWXO);
+
 
 	if (IS_ERR(file)){
 		printk(KERN_WARNING "[DEBUG]%d sys_write_log > file->f_pos is negative\n",IS_ERR(file) );
 		return;
-	}
+	}else{
+    printk("we succeded getting file descriptor!!\n");
+  }
 
 }
 
-void file_close()
+void file_close(void)
 {
 	filp_close(file, NULL);
+  printk("file closing is succeded\n");
 	set_fs(old_fs);
 
 }
@@ -109,15 +98,8 @@ void file_close()
 
 void write_buf(char *buf)
 {
-	struct file *file;
-	char *filename = "/home/yfujeida/android_lkm/packetlog.txt";
 //	struct path path;
 //	int error;
-
- file_open(file);
-
-
-
 // /fs/namei.c line-2118
 
 	// /fs/namei.c line-1829
@@ -134,7 +116,6 @@ void write_buf(char *buf)
 
 	vfs_write(file, buf, strlen(buf), &file->f_pos);
 
-  file_close();
 
 	return;
 }
@@ -158,7 +139,7 @@ static unsigned int payload_dump(unsigned int hooknum,
 
 
 
-
+    write_buf("unnko");
 
 		ip = (struct iphdr *)ip_hdr(skb);
 /*
@@ -201,7 +182,7 @@ static unsigned int payload_dump(unsigned int hooknum,
 
 		/*-------------UDP------------------*/
 
-		write_buf("unnko");
+
 		if(ip->protocol == 17) {
 			udp = (struct udphdr *)ipip_hdr(skb);
 			/*
@@ -341,6 +322,8 @@ static unsigned int payload_dump(unsigned int hooknum,
 		nfhook.priority = NF_IP_PRI_FIRST;
 		nf_register_hook(&nfhook);
 
+   file_open();
+
 
 
 		return 0;
@@ -349,6 +332,7 @@ static unsigned int payload_dump(unsigned int hooknum,
 	static void __exit cleanup_main(void)
 	{
 		nf_unregister_hook(&nfhook);
+    file_close();
 		printk("refused protomodule");
 
 	}
