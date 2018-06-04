@@ -73,7 +73,9 @@ void file_open(void)
   old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	file = filp_open(filename, O_CREAT | O_WRONLY | O_APPEND | O_LARGEFILE,  S_IRWXU | S_IRWXG | S_IRWXO);
+
+  // refused  S_IRWXU | S_IRWXG | S_IRWXO
+	file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE,0);
 
 
 	if (IS_ERR(file)){
