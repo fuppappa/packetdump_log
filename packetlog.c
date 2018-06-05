@@ -1,3 +1,8 @@
+// my linux kernel version is 4.4.0 v127
+// android packet dump module
+
+
+
 #include <linux/module.h>	/* Needed by all modules */
 #include <linux/kernel.h>	/* Needed for KERN_INFO */
 #include <linux/init.h>		/* Needed for the macros */
@@ -19,71 +24,71 @@
 #include <linux/path.h> /* Needed for  */
 #include <linux/mount.h> /* Needed for kern_path */
 #include <asm-generic/rtc.h>/* Needed for using get_rtc_time function */
-//#include <linux/time.h> /*Needed for func timestamp*/
-
-
-
+//#include <linux/time.h> /*Needed for func do_getimeofday function */
 
 MODULE_AUTHOR("yfujieda");
 MODULE_DESCRIPTION("packet dump");
 MODULE_LICENSE("GPL");
 
-// my linux kernel version is 4.4.0
 
+//Needed for timestamp
 static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+//Needed for file open, close, write
 const char *filename = "/home/yfujeida/log/lkm/packetlog/log.txt";
 mm_segment_t old_fs;
 struct file *file;
+//main module
 struct ethhdr *mac;
 struct iphdr *ip;
 struct tcphdr *tcp;
 struct udphdr *udp;
 struct ethhdr *ether_header;
 struct skbbf *skb_bf;
+
+//register callback func to hook point
 static struct nf_hook_ops nfhook;
 
-
-
 //get timestamp
-static void timestamp(const char *file, const int line)
+static void timestamp(void)
 {
         struct rtc_time t;
         get_rtc_time(&t);
 
-        printk("%s %d %d:%d:%d %d: %s:%d: ",
-               months[t.tm_mon], t.tm_mday, t.tm_hour, t.tm_min,
-               t.tm_sec, 2000 + (t.tm_year), file, line);
+        printk("%s %d %d:%d:%d %d",
+               months[t.tm_mon], t.tm_mday, (t.tm_hour + 9), t.tm_min,
+               t.tm_sec, 2000 + (t.tm_year % 100));
 }
 
-
-
 // write_log modules
-
 
 // function kern_path
 /*
 #include <linux/mount.h>
 int kern_path(const char *name, unsigned int flags, struct path *path)
 */
-
-
 void file_open(void)
 {
 
   old_fs = get_fs();
 	set_fs(KERNEL_DS);
+  struct path path;
+  int err;
+  // /fs/namei.c line-2118
 
-
-  // refused  S_IRWXU | S_IRWXG | S_IRWXO
-	file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE,0);
-
+  	// /fs/namei.c line-1829
+  err = kern_path(filename, LOOKUP_FOLLOW, &path);
+	if(err){
+		file = filp_open(filename, O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+	}else{
+		file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE, 0);
+    printk("we succeded getting file descriptor!!\n");
+	}
 
 	if (IS_ERR(file)){
 		printk(KERN_WARNING "[DEBUG]%d sys_write_log > file->f_pos is negative\n",IS_ERR(file) );
-		return;
-	}else{
-    printk("we succeded getting file descriptor!!\n");
+	 	return;
   }
 
 }
@@ -95,34 +100,16 @@ void file_close(void)
 	set_fs(old_fs);
 
 }
-
-
 //sprit function file_open file_close
-
 void write_buf(char *buf)
 {
-//	struct path path;
-//	int error;
-// /fs/namei.c line-2118
-
-	// /fs/namei.c line-1829
-/*	error = kern_path(filename, LOOKUP_PARENT, &path);
-	if(error){
-		file = filp_open(filename, O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-	}else{
-		file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE, 0);
-	}
-*/
-
 	/*  fs/read_write.c  function is defined ssize_t vfs_write(struct file *file,
 	const char __user *buf, size_t count, loff_t *pos) {   */
 
 	vfs_write(file, buf, strlen(buf), &file->f_pos);
 
-
 	return;
 }
-
 
 
 //main modules
@@ -141,11 +128,10 @@ static unsigned int payload_dump(unsigned int hooknum,
 		// char tmp_ip[4];
 
 
-
-    write_buf("unnko");
+/*
 
 		ip = (struct iphdr *)ip_hdr(skb);
-/*
+
 		if(ip){
 			printk(KERN_WARNING "[DEBUG]ip header hook failed ");
 		}
@@ -181,8 +167,8 @@ static unsigned int payload_dump(unsigned int hooknum,
 		printk("\n");
 	  printk("s_addr   :%x      \t\t",be32_to_cpu(ip->saddr));
 
-		printk("d_addr :%x\n",be32_to_cpu(ip->daddr));*/
-
+		printk("d_addr :%x\n",be32_to_cpu(ip->daddr));
+*/
 		/*-------------UDP------------------*/
 
 
@@ -263,11 +249,6 @@ static unsigned int payload_dump(unsigned int hooknum,
 
 					//      printk("tail: %s", skb->head+skb->tail);
 
-
-
-
-
-
 				}
 				if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
 					printk(KERN_ALERT "----HTTP-------------\n");
@@ -285,18 +266,9 @@ static unsigned int payload_dump(unsigned int hooknum,
 				tcp = tcp-offset;
 				*/
 			}
-
-
 			if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
 				printk(KERN_ALERT "----HTTPS-------------\n");
 			}
-
-
-
-
-
-
-
 			/*
 			printk(KERN_ALERT"\n---- skbuff -----------------------\n");
 			printk("csum      :%3x\t",skb->csum);
@@ -324,8 +296,8 @@ static unsigned int payload_dump(unsigned int hooknum,
 		nfhook.pf       = PF_INET;
 		nfhook.priority = NF_IP_PRI_FIRST;
 		nf_register_hook(&nfhook);
-
-   file_open();
+    timestamp();
+    file_open();
 
 
 
@@ -336,7 +308,7 @@ static unsigned int payload_dump(unsigned int hooknum,
 	{
 		nf_unregister_hook(&nfhook);
     file_close();
-		printk("refused protomodule");
+		printk("refused packetdump_mod");
 
 	}
 
