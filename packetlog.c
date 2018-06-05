@@ -25,6 +25,7 @@
 #include <linux/mount.h> /* Needed for kern_path */
 #include <asm-generic/rtc.h>/* Needed for using get_rtc_time function */
 //#include <linux/time.h> /*Needed for func do_getimeofday function */
+#include <linux/sched.h> /*Needed for schedule_timeout function */
 
 MODULE_AUTHOR("yfujieda");
 MODULE_DESCRIPTION("packet dump");
@@ -32,6 +33,8 @@ MODULE_LICENSE("GPL");
 
 
 //Needed for timestamp
+
+//char *time_tmp;
 static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
@@ -50,16 +53,6 @@ struct skbbf *skb_bf;
 //register callback func to hook point
 static struct nf_hook_ops nfhook;
 
-//get timestamp
-static void timestamp(void)
-{
-        struct rtc_time t;
-        get_rtc_time(&t);
-
-        printk("%s %d %d:%d:%d %d",
-               months[t.tm_mon], t.tm_mday, (t.tm_hour + 9), t.tm_min,
-               t.tm_sec, 2000 + (t.tm_year % 100));
-}
 
 // write_log modules
 
@@ -112,6 +105,21 @@ void write_buf(char *buf)
 }
 
 
+//get timestamp
+static void timestamp(void)
+{
+        struct rtc_time t;
+        get_rtc_time(&t);
+
+  //      strcat(time_tmp, months[t.tm_mon]);
+  //      write_buf(time_tmp);
+        printk("%s %d %d:%d:%d %d",
+               months[t.tm_mon], t.tm_mday, (t.tm_hour + 9), t.tm_min,
+               t.tm_sec, 2000 + (t.tm_year % 100));
+}
+
+
+
 //main modules
 
 static unsigned int payload_dump(unsigned int hooknum,
@@ -122,35 +130,36 @@ static unsigned int payload_dump(unsigned int hooknum,
 
 	{
 		char *tcp_pl;
-		// unsigned int ipa, ipa2;
-		// int i;
-		// char adress[17];
-		// char tmp_ip[4];
+	  unsigned int ipa;
+	  int i;
+		char address[17];
+		char *tmp;
+    //char *tmp;
 
-
-/*
 
 		ip = (struct iphdr *)ip_hdr(skb);
 
-		if(ip){
+		if(!ip){
 			printk(KERN_WARNING "[DEBUG]ip header hook failed ");
 		}
 
 
 
-		printk("source adoress:(->)");
+    //write_buf("source adress:");
 		for (i=0;i<4;i++){
 
 			ipa=(le32_to_cpu(ip->saddr)>>8*i)&0xff;
 
+    //  sprintf(tmp_ip,"%d",ipa);
+		//	strcat(address, tmp_ip);
+      if(i<3){
+        strcat(address, ".");
 
-      sprintf(tmp_ip,"%d",ipa);
-			strcat(adress, tmp_ip);
-
-			printk("%d", ipa);
-			if(i<3)
-			printk(".");
+      }
 		}
+
+//printk("%s\n", address);
+/*
 		printk("\n");
 		printk("%s", adress);
 
@@ -197,7 +206,10 @@ static unsigned int payload_dump(unsigned int hooknum,
 
 		if(ip->protocol == 6) {
 			tcp = (struct tcphdr *)ipip_hdr(skb);
-			/*
+    //  sprintf(tmp,"%d", tcp->dest);
+    //  strcat(tmp, ".");
+      write_buf(tmp);
+      /*
 			printk(KERN_ALERT"\n---- TCP Header -------------------\n");
 			printk("source port : %7u\t",ntohs(tcp->source));
 			printk("dest port   : %7u\t",ntohs(tcp->dest));
@@ -284,13 +296,12 @@ static unsigned int payload_dump(unsigned int hooknum,
 			*/
 		}
 
-
-
 		return NF_ACCEPT;
 	}
 
 	static int __init init_main(void)
 	{
+
 		nfhook.hook     = payload_dump;
 		nfhook.hooknum  = 0;
 		nfhook.pf       = PF_INET;
@@ -298,6 +309,7 @@ static unsigned int payload_dump(unsigned int hooknum,
 		nf_register_hook(&nfhook);
     timestamp();
     file_open();
+    //write_buf(&time_tmp);
 
 
 
