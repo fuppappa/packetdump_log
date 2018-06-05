@@ -40,48 +40,23 @@ struct ethhdr *ether_header;
 struct skbbf *skb_bf;
 static struct nf_hook_ops nfhook;
 
-/*
-
-//get timestamp
-
-static int timestamp() {
-  struct timespac time;
-	long timestamp;
-
-  //this fuc sets value to an argument
-	getmstimeofday(&time);
-
-	timestamp = time
-
-}
-*/
-
-
-// write_log modules
-
-
-// function kern_path
-/*
-#include <linux/mount.h>
-int kern_path(const char *name, unsigned int flags, struct path *path)
-*/
 
 
 void file_open(void)
 {
 
   old_fs = get_fs();
-	set_fs(KERNEL_DS);
+  set_fs(KERNEL_DS);
 
 
   // refused  S_IRWXU | S_IRWXG | S_IRWXO
-	file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE,0);
+  file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE,0);
 
 
-	if (IS_ERR(file)){
-		printk(KERN_WARNING "[DEBUG]%d sys_write_log > file->f_pos is negative\n",IS_ERR(file) );
-		return;
-	}else{
+  if (IS_ERR(file)){
+    printk(KERN_WARNING "[DEBUG]%d sys_write_log > file->f_pos is negative\n",IS_ERR(file) );
+    return;
+  }else{
     printk("we succeded getting file descriptor!!\n");
   }
 
@@ -89,9 +64,9 @@ void file_open(void)
 
 void file_close(void)
 {
-	filp_close(file, NULL);
+  filp_close(file, NULL);
   printk("file closing is succeded\n");
-	set_fs(old_fs);
+  set_fs(old_fs);
 
 }
 
@@ -100,26 +75,8 @@ void file_close(void)
 
 void write_buf(char *buf)
 {
-//	struct path path;
-//	int error;
-// /fs/namei.c line-2118
-
-	// /fs/namei.c line-1829
-/*	error = kern_path(filename, LOOKUP_PARENT, &path);
-	if(error){
-		file = filp_open(filename, O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-	}else{
-		file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE, 0);
-	}
-*/
-
-	/*  fs/read_write.c  function is defined ssize_t vfs_write(struct file *file,
-	const char __user *buf, size_t count, loff_t *pos) {   */
-
-	vfs_write(file, buf, strlen(buf), &file->f_pos);
-
-
-	return;
+  vfs_write(file, buf, strlen(buf), &file->f_pos);
+  return;
 }
 
 
@@ -127,217 +84,98 @@ void write_buf(char *buf)
 //main modules
 
 static unsigned int payload_dump(unsigned int hooknum,
-	struct sk_buff *skb,
-	const struct net_device *in,
-	const struct net_device *out,
-	int (*okfn)(struct sk_buff*))
+  struct sk_buff *skb,
+  const struct net_device *in,
+  const struct net_device *out,
+  int (*okfn)(struct sk_buff*))
 
-	{
-		char *tcp_pl;
-		// unsigned int ipa, ipa2;
-		// int i;
-		// char adress[17];
-		// char tmp_ip[4];
+  {
+    char *tcp_pl;
+    ip = (struct iphdr *)ip_hdr(skb);
 
 
+    /*-------------UDP------------------*/
 
-    write_buf("unnko");
 
-		ip = (struct iphdr *)ip_hdr(skb);
-/*
-		if(ip){
-			printk(KERN_WARNING "[DEBUG]ip header hook failed ");
-		}
+    if(ip->protocol == 17) {
+      udp = (struct udphdr *)ipip_hdr(skb);
 
+      if(ntohs(udp->source) == 53 || ntohs(udp->dest) == 53){
+        printk(KERN_ALERT"----Domain Name System-------------\n");
 
+      }
 
-		printk("source adoress:(->)");
-		for (i=0;i<4;i++){
+    }
 
-			ipa=(le32_to_cpu(ip->saddr)>>8*i)&0xff;
+    /*--------------TCP-----------------*/
 
 
-      sprintf(tmp_ip,"%d",ipa);
-			strcat(adress, tmp_ip);
+    if(ip->protocol == 6) {
+      tcp = (struct tcphdr *)ipip_hdr(skb);
 
-			printk("%d", ipa);
-			if(i<3)
-			printk(".");
-		}
-		printk("\n");
-		printk("%s", adress);
+      if(ntohs(tcp->source) == 23 || ntohs(tcp->dest) == 23){
+        //  printk(KERN_ALERT "----TELNET-------------\n");
 
 
-		printk("destination adress:(<-)");
+        //disputed point
 
-		for (i=0;i<4;i++){
 
-			ipa2=(le32_to_cpu(ip->daddr)>>8*i)&0xff;
-			printk("%d", ipa2);
-			if(i<3)
-			printk(".");
-		}
-		printk("\n");
-	  printk("s_addr   :%x      \t\t",be32_to_cpu(ip->saddr));
+        tcp_pl = (char *)tcp;
+        tcp_pl =tcp_pl+tcp_hdrlen(skb);
 
-		printk("d_addr :%x\n",be32_to_cpu(ip->daddr));*/
+        if(ntohs(tcp->source) == 23)
+        {
+          /*
+          printk("telnet->:");
+          printk("%s\n", tcp_pl);
+          */
+        }else{
+          /*    printk("telnet<-:");
+          printk("%s\n", tcp_pl);
+          */ }
 
-		/*-------------UDP------------------*/
+          //      printk("tail: %s", skb->head+skb->tail);
+        }
+        if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
+          printk(KERN_ALERT "----HTTP-------------\n");
 
+        }
 
-		if(ip->protocol == 17) {
-			udp = (struct udphdr *)ipip_hdr(skb);
-			/*
-			printk(KERN_ALERT "\n---- UDP Header -------------------\n");
-			printk("source port : %7u\t",ntohs(udp->source));
-			printk("dest port   : %7u\t",ntohs(udp->dest));
-			printk("UDP_packet_length    : %7u\t",ntohl(udp->len));
-			printk("check     : %7u\n",ntohl(udp->check));
-			*/
-			if(ntohs(udp->source) == 53 || ntohs(udp->dest) == 53){
-				//  printk(KERN_ALERT"----Domain Name System-------------\n");
-				/*	  int s[] = udp+(int)udp->len;
+        
+        if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
+          printk(KERN_ALERT "----HTTPS-------------\n");
+        }
 
-				printk("iiiii%d", *s);
-				*/
 
-			}
+      }
 
-		}
 
-		/*--------------TCP-----------------*/
 
+      return NF_ACCEPT;
+    }
 
-		if(ip->protocol == 6) {
-			tcp = (struct tcphdr *)ipip_hdr(skb);
-			/*
-			printk(KERN_ALERT"\n---- TCP Header -------------------\n");
-			printk("source port : %7u\t",ntohs(tcp->source));
-			printk("dest port   : %7u\t",ntohs(tcp->dest));
-			printk("sequence    : %7x\t",ntohl(tcp->seq));
-			printk("ack seq     : %7x\n",ntohl(tcp->ack_seq));
-			//4bit
-			printk("data offset : %7u\n",tcp->doff);
-			//1bit
-			printk("frags       :");
-			tcp->fin ? printk(" FIN") : 0 ;
-			tcp->syn ? printk(" SYN") : 0 ;
-			tcp->rst ? printk(" RST") : 0 ;
-			tcp->psh ? printk(" PSH") : 0 ;
-			tcp->ack ? printk(" ACK") : 0 ;
-			tcp->urg ? printk(" URG") : 0 ;
-			printk("\t");
+    static int __init init_main(void)
+    {
+      nfhook.hook     = payload_dump;
+      nfhook.hooknum  = 0;
+      nfhook.pf       = PF_INET;
+      nfhook.priority = NF_IP_PRI_FIRST;
+      nf_register_hook(&nfhook);
 
+      file_open();
 
 
 
-			//limit size
-			printk("window      : %7u\t",ntohs(tcp->window));
-			//checksum
-			printk("check       : 0x%x   \t",ntohs(tcp->check));
-			//if contorol flag is urg only
-			printk("urt_ptr     : %7u\n",tcp->urg_ptr);
+      return 0;
+    }
 
-			*/
-			if(ntohs(tcp->source) == 23 || ntohs(tcp->dest) == 23){
-				//  printk(KERN_ALERT "----TELNET-------------\n");
+    static void __exit cleanup_main(void)
+    {
+      nf_unregister_hook(&nfhook);
+      file_close();
+      printk("refused protomodule");
 
+    }
 
-				//disputed point
-
-
-				tcp_pl = (char *)tcp;
-				tcp_pl =tcp_pl+tcp_hdrlen(skb);
-
-				if(ntohs(tcp->source) == 23)
-				{
-					/*
-					printk("telnet->:");
-					printk("%s\n", tcp_pl);
-					*/
-				}else{
-					/*    printk("telnet<-:");
-					printk("%s\n", tcp_pl);
-					*/ }
-
-					//      printk("tail: %s", skb->head+skb->tail);
-
-
-
-
-
-
-				}
-				if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
-					printk(KERN_ALERT "----HTTP-------------\n");
-					//disputed point
-
-
-					/*
-					tcp = tcp+offset;
-					while(tcp){
-
-					printk("%s", tcp+i);
-					i++;
-				}
-
-				tcp = tcp-offset;
-				*/
-			}
-
-
-			if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
-				printk(KERN_ALERT "----HTTPS-------------\n");
-			}
-
-
-
-
-
-
-
-			/*
-			printk(KERN_ALERT"\n---- skbuff -----------------------\n");
-			printk("csum      :%3x\t",skb->csum);
-			printk("ip_summed :%3x\t",skb->ip_summed);
-			printk("priority  :%3x\t",skb->priority);
-			printk("cloned    :%3x\t",skb->cloned);
-			printk("nohdr     :%3x\n",skb->nohdr);
-			printk("fclone    :%3x\t",skb->fclone);
-			printk("peeked    :%3x\t",skb->peeked);
-			printk("nf_trace  :%3x\t",skb->nf_trace);
-			printk("protocol  :%3x\n",skb->protocol);
-			printk("----end----\n\n\n");
-			*/
-		}
-
-
-
-		return NF_ACCEPT;
-	}
-
-	static int __init init_main(void)
-	{
-		nfhook.hook     = payload_dump;
-		nfhook.hooknum  = 0;
-		nfhook.pf       = PF_INET;
-		nfhook.priority = NF_IP_PRI_FIRST;
-		nf_register_hook(&nfhook);
-
-   file_open();
-
-
-
-		return 0;
-	}
-
-	static void __exit cleanup_main(void)
-	{
-		nf_unregister_hook(&nfhook);
-    file_close();
-		printk("refused protomodule");
-
-	}
-
-	module_init(init_main);
-	module_exit(cleanup_main);
+    module_init(init_main);
+    module_exit(cleanup_main);
