@@ -18,7 +18,9 @@
 #include <linux/mm.h>
 #include <linux/path.h> /* Needed for  */
 #include <linux/mount.h> /* Needed for kern_path */
+#include <asm-generic/rtc.h>/* Needed for using get_rtc_time function */
 //#include <linux/time.h> /*Needed for func timestamp*/
+
 
 
 
@@ -28,7 +30,8 @@ MODULE_LICENSE("GPL");
 
 // my linux kernel version is 4.4.0
 
-
+static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 const char *filename = "/home/yfujeida/log/lkm/packetlog/log.txt";
 mm_segment_t old_fs;
 struct file *file;
@@ -40,21 +43,19 @@ struct ethhdr *ether_header;
 struct skbbf *skb_bf;
 static struct nf_hook_ops nfhook;
 
-/*
+
 
 //get timestamp
+static void timestamp(const char *file, const int line)
+{
+        struct rtc_time t;
+        get_rtc_time(&t);
 
-static int timestamp() {
-  struct timespac time;
-	long timestamp;
-
-  //this fuc sets value to an argument
-	getmstimeofday(&time);
-
-	timestamp = time
-
+        printk("%s %d %d:%d:%d %d: %s:%d: ",
+               months[t.tm_mon], t.tm_mday, t.tm_hour, t.tm_min,
+               t.tm_sec, 2000 + (t.tm_year), file, line);
 }
-*/
+
 
 
 // write_log modules
