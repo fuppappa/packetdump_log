@@ -26,22 +26,18 @@
 #include <asm-generic/rtc.h>/* Needed for using get_rtc_time function */
 //#include <linux/time.h> /*Needed for func do_getimeofday function */
 #include <linux/sched.h> /*Needed for schedule_timeout function */
+//Needed for proc
+#include <linux/types.h>
+//#include <linux/fs.h>
+#include <linux/proc_fs.h>
+#include <linux/stat.h>
+//#include <linux/string.h>
+//#include <asm/uaccess.h>
 
 MODULE_AUTHOR("yfujieda");
 MODULE_DESCRIPTION("packet dump");
 MODULE_LICENSE("GPL");
 
-
-//Needed for timestamp
-
-//char *time_tmp;
-static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-
-//Needed for file open, close, write
-const char *filename = "/home/yfujeida/log/lkm/packetlog/log.txt";
-mm_segment_t old_fs;
-struct file *file;
 //main module
 struct ethhdr *mac;
 struct iphdr *ip;
@@ -49,73 +45,26 @@ struct tcphdr *tcp;
 struct udphdr *udp;
 struct ethhdr *ether_header;
 struct skbbf *skb_bf;
-
-//register callback func to hook point
 static struct nf_hook_ops nfhook;
+//register callback func to hook point
 
+//Needed for timestamp
 
-// write_log modules
-
-// function kern_path
-/*
-#include <linux/mount.h>
-int kern_path(const char *name, unsigned int flags, struct path *path)
-*/
-void file_open(void)
-{
-
-  old_fs = get_fs();
-	set_fs(KERNEL_DS);
-  struct path path;
-  int err;
-  // /fs/namei.c line-2118
-
-  	// /fs/namei.c line-1829
-  err = kern_path(filename, LOOKUP_FOLLOW, &path);
-	if(err){
-		file = filp_open(filename, O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-	}else{
-		file = filp_open(filename, O_WRONLY | O_APPEND | O_LARGEFILE, 0);
-    printk("we succeded getting file descriptor!!\n");
-	}
-
-	if (IS_ERR(file)){
-		printk(KERN_WARNING "[DEBUG]%d sys_write_log > file->f_pos is negative\n",IS_ERR(file) );
-	 	return;
-  }
-
-}
-
-void file_close(void)
-{
-	filp_close(file, NULL);
-  printk("file closing is succeded\n");
-	set_fs(old_fs);
-
-}
-//sprit function file_open file_close
-void write_buf(char *buf)
-{
-	/*  fs/read_write.c  function is defined ssize_t vfs_write(struct file *file,
-	const char __user *buf, size_t count, loff_t *pos) {   */
-
-	vfs_write(file, buf, strlen(buf), &file->f_pos);
-
-	return;
-}
-
+//char *time_tmp;
+static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 //get timestamp
 static void timestamp(void)
 {
-        struct rtc_time t;
-        get_rtc_time(&t);
+  struct rtc_time t;
+  get_rtc_time(&t);
 
   //      strcat(time_tmp, months[t.tm_mon]);
   //      write_buf(time_tmp);
-        printk("%s %d %d:%d:%d %d",
-               months[t.tm_mon], t.tm_mday, (t.tm_hour + 9), t.tm_min,
-               t.tm_sec, 2000 + (t.tm_year % 100));
+  printk("%s %d %d:%d:%d %d",
+  months[t.tm_mon], t.tm_mday, (t.tm_hour + 9), t.tm_min,
+  t.tm_sec, 2000 + (t.tm_year % 100));
 }
 
 
@@ -123,206 +72,76 @@ static void timestamp(void)
 //main modules
 
 static unsigned int payload_dump(unsigned int hooknum,
-	struct sk_buff *skb,
-	const struct net_device *in,
-	const struct net_device *out,
-	int (*okfn)(struct sk_buff*))
+  struct sk_buff *skb,
+  const struct net_device *in,
+  const struct net_device *out,
+  int (*okfn)(struct sk_buff*))
 
-	{
-		char *tcp_pl;
-	  unsigned int ipa;
-	  int i;
-		char address[17];
-		char *tmp;
-    //char *tmp;
+  {
+    ip = (struct iphdr *)ip_hdr(skb);
 
-
-		ip = (struct iphdr *)ip_hdr(skb);
-
-		if(!ip){
-			printk(KERN_WARNING "[DEBUG]ip header hook failed ");
-		}
+    if(!ip){
+      printk(KERN_WARNING "[DEBUG]ip header hook failed ");
+    }
 
 
+    /*-------------UDP------------------*/
 
-    //write_buf("source adress:");
-		for (i=0;i<4;i++){
 
-			ipa=(le32_to_cpu(ip->saddr)>>8*i)&0xff;
+    if(ip->protocol == 17) {
+      udp = (struct udphdr *)ipip_hdr(skb);
 
-    //  sprintf(tmp_ip,"%d",ipa);
-		//	strcat(address, tmp_ip);
-      if(i<3){
-        strcat(address, ".");
+      if(ntohs(udp->source) == 53 || ntohs(udp->dest) == 53){
 
       }
-		}
 
-//printk("%s\n", address);
-/*
-		printk("\n");
-		printk("%s", adress);
+    }
+
+    /*--------------TCP-----------------*/
 
 
-		printk("destination adress:(<-)");
-
-		for (i=0;i<4;i++){
-
-			ipa2=(le32_to_cpu(ip->daddr)>>8*i)&0xff;
-			printk("%d", ipa2);
-			if(i<3)
-			printk(".");
-		}
-		printk("\n");
-	  printk("s_addr   :%x      \t\t",be32_to_cpu(ip->saddr));
-
-		printk("d_addr :%x\n",be32_to_cpu(ip->daddr));
-*/
-		/*-------------UDP------------------*/
+    if(ip->protocol == 6) {
+      tcp = (struct tcphdr *)ipip_hdr(skb);
 
 
-		if(ip->protocol == 17) {
-			udp = (struct udphdr *)ipip_hdr(skb);
-			/*
-			printk(KERN_ALERT "\n---- UDP Header -------------------\n");
-			printk("source port : %7u\t",ntohs(udp->source));
-			printk("dest port   : %7u\t",ntohs(udp->dest));
-			printk("UDP_packet_length    : %7u\t",ntohl(udp->len));
-			printk("check     : %7u\n",ntohl(udp->check));
-			*/
-			if(ntohs(udp->source) == 53 || ntohs(udp->dest) == 53){
-				//  printk(KERN_ALERT"----Domain Name System-------------\n");
-				/*	  int s[] = udp+(int)udp->len;
+      if(ntohs(tcp->source) == 23 || ntohs(tcp->dest) == 23){
+        printk(KERN_ALERT "----TELNET-------------\n");
+        }
+        if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
+          printk(KERN_ALERT "----HTTP-------------\n");
 
-				printk("iiiii%d", *s);
-				*/
+        }
+        if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
+          printk(KERN_ALERT "----HTTPS-------------\n");
+        }
 
-			}
+      }
 
-		}
-
-		/*--------------TCP-----------------*/
-
-
-		if(ip->protocol == 6) {
-			tcp = (struct tcphdr *)ipip_hdr(skb);
-    //  sprintf(tmp,"%d", tcp->dest);
-    //  strcat(tmp, ".");
-      write_buf(tmp);
-      /*
-			printk(KERN_ALERT"\n---- TCP Header -------------------\n");
-			printk("source port : %7u\t",ntohs(tcp->source));
-			printk("dest port   : %7u\t",ntohs(tcp->dest));
-			printk("sequence    : %7x\t",ntohl(tcp->seq));
-			printk("ack seq     : %7x\n",ntohl(tcp->ack_seq));
-			//4bit
-			printk("data offset : %7u\n",tcp->doff);
-			//1bit
-			printk("frags       :");
-			tcp->fin ? printk(" FIN") : 0 ;
-			tcp->syn ? printk(" SYN") : 0 ;
-			tcp->rst ? printk(" RST") : 0 ;
-			tcp->psh ? printk(" PSH") : 0 ;
-			tcp->ack ? printk(" ACK") : 0 ;
-			tcp->urg ? printk(" URG") : 0 ;
-			printk("\t");
+      return NF_ACCEPT;
+    }
 
 
 
+    static int __init init_main(void)
+    {
 
-			//limit size
-			printk("window      : %7u\t",ntohs(tcp->window));
-			//checksum
-			printk("check       : 0x%x   \t",ntohs(tcp->check));
-			//if contorol flag is urg only
-			printk("urt_ptr     : %7u\n",tcp->urg_ptr);
+      nfhook.hook     = payload_dump;
+      nfhook.hooknum  = 0;
+      nfhook.pf       = PF_INET;
+      nfhook.priority = NF_IP_PRI_FIRST;
+      nf_register_hook(&nfhook);
+      timestamp();
+      //write_buf(&time_tmp);
+      return 0;
+    }
 
-			*/
-			if(ntohs(tcp->source) == 23 || ntohs(tcp->dest) == 23){
-				//  printk(KERN_ALERT "----TELNET-------------\n");
+    static void __exit cleanup_main(void)
+    {
+      nf_unregister_hook(&nfhook);
+      printk("refused packetdump_mod");
+      printk(KERN_INFO "%s\n", __FUNCTION__);
 
+    }
 
-				//disputed point
-
-
-				tcp_pl = (char *)tcp;
-				tcp_pl =tcp_pl+tcp_hdrlen(skb);
-
-				if(ntohs(tcp->source) == 23)
-				{
-					/*
-					printk("telnet->:");
-					printk("%s\n", tcp_pl);
-					*/
-				}else{
-					/*    printk("telnet<-:");
-					printk("%s\n", tcp_pl);
-					*/ }
-
-					//      printk("tail: %s", skb->head+skb->tail);
-
-				}
-				if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
-					printk(KERN_ALERT "----HTTP-------------\n");
-					//disputed point
-
-
-					/*
-					tcp = tcp+offset;
-					while(tcp){
-
-					printk("%s", tcp+i);
-					i++;
-				}
-
-				tcp = tcp-offset;
-				*/
-			}
-			if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
-				printk(KERN_ALERT "----HTTPS-------------\n");
-			}
-			/*
-			printk(KERN_ALERT"\n---- skbuff -----------------------\n");
-			printk("csum      :%3x\t",skb->csum);
-			printk("ip_summed :%3x\t",skb->ip_summed);
-			printk("priority  :%3x\t",skb->priority);
-			printk("cloned    :%3x\t",skb->cloned);
-			printk("nohdr     :%3x\n",skb->nohdr);
-			printk("fclone    :%3x\t",skb->fclone);
-			printk("peeked    :%3x\t",skb->peeked);
-			printk("nf_trace  :%3x\t",skb->nf_trace);
-			printk("protocol  :%3x\n",skb->protocol);
-			printk("----end----\n\n\n");
-			*/
-		}
-
-		return NF_ACCEPT;
-	}
-
-	static int __init init_main(void)
-	{
-
-		nfhook.hook     = payload_dump;
-		nfhook.hooknum  = 0;
-		nfhook.pf       = PF_INET;
-		nfhook.priority = NF_IP_PRI_FIRST;
-		nf_register_hook(&nfhook);
-    timestamp();
-    file_open();
-    //write_buf(&time_tmp);
-
-
-
-		return 0;
-	}
-
-	static void __exit cleanup_main(void)
-	{
-		nf_unregister_hook(&nfhook);
-    file_close();
-		printk("refused packetdump_mod");
-
-	}
-
-	module_init(init_main);
-	module_exit(cleanup_main);
+    module_init(init_main);
+    module_exit(cleanup_main);
