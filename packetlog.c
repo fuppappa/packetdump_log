@@ -29,7 +29,7 @@
 //Needed for proc
 #include <linux/types.h>
 //#include <linux/fs.h>
-#include <linux/proc_fs.h>
+#include <linux/proc_fs.h>/*Needed for copy_from_user*/
 #include <linux/stat.h>
 //#include <linux/string.h>
 //#include <asm/uaccess.h>
@@ -37,6 +37,11 @@
 MODULE_AUTHOR("yfujieda");
 MODULE_DESCRIPTION("packet dump");
 MODULE_LICENSE("GPL");
+
+#define PROC_NAME "driver/pdump_prot"
+
+
+
 
 //main module
 struct ethhdr *mac;
@@ -53,6 +58,41 @@ static struct nf_hook_ops nfhook;
 //char *time_tmp;
 static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+
+
+
+
+///fs/proc/internal.h
+
+
+static int proc_open(struct inode *node, struct file *fp)
+{
+        printk("open\n");
+        return 1;
+}
+
+static ssize_t proc_read(struct file *fp, char *buf, size_t size, loff_t *off)
+{
+        printk("read\n");
+        return size;
+}
+
+
+static ssize_t proc_write(struct file *fp, const char *buf, size_t size, loff_t *off)
+{
+        printk("write\n");
+        return size;
+}
+
+static struct file_operations example_proc_fops = {
+        .owner = THIS_MODULE,
+        .open = proc_open,
+        .read = proc_read,
+        .write = proc_write,
+};
+
+
 
 //get timestamp
 static void timestamp(void)
@@ -125,14 +165,21 @@ static unsigned int payload_dump(unsigned int hooknum,
     static int __init init_main(void)
     {
 
+      static struct proc_dir_entry *pdir_entry;
+
       nfhook.hook     = payload_dump;
       nfhook.hooknum  = 0;
       nfhook.pf       = PF_INET;
       nfhook.priority = NF_IP_PRI_FIRST;
       nf_register_hook(&nfhook);
       timestamp();
-      //write_buf(&time_tmp);
-      return 0;
+      pdir_entry = proc_create(PROC_NAME, S_IRUGO | S_IWUGO | S_IXUGO, NULL, &example_proc_fops);
+      if(!pdir_entry){
+        remove_proc_entry(PROC_NAME, NULL);
+        return -ENOMEM;
+      }
+      printk("proc example loaded\n");
+             return 0;
     }
 
     static void __exit cleanup_main(void)
@@ -140,6 +187,7 @@ static unsigned int payload_dump(unsigned int hooknum,
       nf_unregister_hook(&nfhook);
       printk("refused packetdump_mod");
       printk(KERN_INFO "%s\n", __FUNCTION__);
+      remove_proc_entry(PROC_NAME, NULL);
 
     }
 
