@@ -1,12 +1,20 @@
-// my linux kernel version is 4.4.0 v127
-// android packet dump module
+/*
+ * my linux kernel version is 4.4.0 v127
+ * target android hammerhead kernel version 3.3.0
+ * android packet dump module
+ */
 
-
+/*
+ * this module dump all packet
+ * dump data export proc file (/drivers/pdump_prot)
+ * Latest update 2018, 6, 20
+ */
 
 #include <linux/module.h>	/* Needed by all modules */
 #include <linux/kernel.h>	/* Needed for KERN_INFO */
 #include <linux/init.h>		/* Needed for the macros */
 #include <linux/string.h> /* Needed for strcat */
+#include <linux/vmalloc.h> /* Needed for vmalloc func */
 #include <linux/skbuff.h> /* Needed for skbuff struct */
 #include <linux/netfilter.h> /* Needed for hook　function */
 #include <linux/netfilter_ipv4.h>
@@ -29,7 +37,7 @@
 //Needed for proc
 #include <linux/types.h>
 //#include <linux/fs.h>
-#include <linux/proc_fs.h>/*Needed for copy_from_user*/
+#include <linux/proc_fs.h>/* Needed for copy_from_user */
 #include <linux/stat.h>
 //#include <linux/string.h>
 //#include <asm/uaccess.h>
@@ -39,10 +47,14 @@ MODULE_DESCRIPTION("packet dump");
 MODULE_LICENSE("GPL");
 
 #define PROC_NAME "driver/pdump_prot"
+#define MAX_FILE_LENGTH PAGE_SIZE
+#define LOG_BUFFER_SIZE 16392
+/* proc file entry */
 
+// /fs/proc/internal.h lines-31
+struct proc_dir_entry *proc_entry;
 
-
-
+static char proc_buf[LOG_BUFFER_SIZE];
 //main module
 struct ethhdr *mac;
 struct iphdr *ip;
@@ -59,39 +71,61 @@ static struct nf_hook_ops nfhook;
 static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
-
-
-
-
 ///fs/proc/internal.h
 
 
-static int proc_open(struct inode *node, struct file *fp)
-{
-        printk("open\n");
-        return 1;
+static int proc_open(struct inode *node, struct file *fp){
+  printk("open\n");
+  return 1;
 }
 
-static ssize_t proc_read(struct file *fp, char *buf, size_t size, loff_t *off)
+static ssize_t proc_read(struct file *fp, char __user *buf, size_t size, loff_t *off)
 {
-        printk("read\n");
-        return size;
+  memcpy(buf, proc_buf, sizeof(proc_buf));
+  printk(KERN_INFO "reading... buf=%s\n", buf);
+  proc_buf[0] = {"abcded"};
+  return size;
 }
 
 
 static ssize_t proc_write(struct file *fp, const char *buf, size_t size, loff_t *off)
 {
-        printk("write\n");
-        return size;
+  printk("write\n");
+  return size;
 }
 
 static struct file_operations example_proc_fops = {
-        .owner = THIS_MODULE,
-        .open = proc_open,
-        .read = proc_read,
-        .write = proc_write,
+  .owner = THIS_MODULE,
+  .open = proc_open,
+  .read = proc_read,
+  .write = proc_write,
 };
 
+
+
+int proc_create_entry(void) {
+
+  int ret = 0;
+
+  proc_entry = proc_create(PROC_NAME, S_IRUGO | S_IWUGO | S_IXUGO, NULL, &example_proc_fops);
+
+  if (proc_entry == NULL) {
+
+    ret = -ENOMEM;
+    printk(KERN_INFO "[DEBUG]:mymodule_proc: Couldn't create proc entry\n");
+
+  }
+  return ret;
+
+}
+
+int proc_close(void){
+
+  printk("proc_entry is succeed");
+  remove_proc_entry(PROC_NAME, NULL);
+
+  return 0;
+}
 
 
 //get timestamp
@@ -146,50 +180,48 @@ static unsigned int payload_dump(unsigned int hooknum,
 
       if(ntohs(tcp->source) == 23 || ntohs(tcp->dest) == 23){
         printk(KERN_ALERT "----TELNET-------------\n");
-        }
-        if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
-          printk(KERN_ALERT "----HTTP-------------\n");
-
-        }
-        if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
-          printk(KERN_ALERT "----HTTPS-------------\n");
-        }
+      }
+      if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
+        printk(KERN_ALERT "----HTTP-------------\n");
 
       }
-
-      return NF_ACCEPT;
-    }
-
-
-
-    static int __init init_main(void)
-    {
-
-      static struct proc_dir_entry *pdir_entry;
-
-      nfhook.hook     = payload_dump;
-      nfhook.hooknum  = 0;
-      nfhook.pf       = PF_INET;
-      nfhook.priority = NF_IP_PRI_FIRST;
-      nf_register_hook(&nfhook);
-      timestamp();
-      pdir_entry = proc_create(PROC_NAME, S_IRUGO | S_IWUGO | S_IXUGO, NULL, &example_proc_fops);
-      if(!pdir_entry){
-        remove_proc_entry(PROC_NAME, NULL);
-        return -ENOMEM;
+      if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
+        printk(KERN_ALERT "----HTTPS-------------\n");
       }
-      printk("proc example loaded\n");
-             return 0;
-    }
-
-    static void __exit cleanup_main(void)
-    {
-      nf_unregister_hook(&nfhook);
-      printk("refused packetdump_mod");
-      printk(KERN_INFO "%s\n", __FUNCTION__);
-      remove_proc_entry(PROC_NAME, NULL);
 
     }
 
-    module_init(init_main);
-    module_exit(cleanup_main);
+    return NF_ACCEPT;
+  }
+
+
+
+  static int __init init_main(void)
+  {
+    int err;
+    nfhook.hook     = payload_dump;
+    nfhook.hooknum  = 0;
+    nfhook.pf       = PF_INET;
+    nfhook.priority = NF_IP_PRI_FIRST;
+    nf_register_hook(&nfhook);
+    timestamp();
+
+    err = proc_create_entry();
+
+    if(err == 0){
+      printk("create proc entry is succeed\n");
+    }
+    return err;
+  }
+
+  static void __exit cleanup_main(void)
+  {
+    nf_unregister_hook(&nfhook);
+    printk("refused packetdump_mod");
+    printk(KERN_INFO "%s\n", __FUNCTION__);
+    proc_close();
+
+  }
+
+  module_init(init_main);
+  module_exit(cleanup_main);
