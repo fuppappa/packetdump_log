@@ -1,1 +1,0 @@
-cmd_/home/yfujeida/share/lkm/packetdump_log/packetmod.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /home/yfujeida/share/lkm/packetdump_log/packetmod.ko /home/yfujeida/share/lkm/packetdump_log/packetmod.o /home/yfujeida/share/lkm/packetdump_log/packetmod.mod.o
