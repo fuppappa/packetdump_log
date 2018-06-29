@@ -81,9 +81,16 @@ static int proc_open(struct inode *node, struct file *fp){
 
 static ssize_t proc_read(struct file *fp, char __user *buf, size_t size, loff_t *off)
 {
-  memcpy(buf, proc_buf, sizeof(proc_buf));
+  int buf_size;
+
+  if(size < proc_buf){
+    buf_size = size;
+  } else{
+    buf_size = sizeof(proc_buf);
+  }
+  strcopy(proc_buf, "tinnko");
+  memcpy(buf, proc_buf, buf_size);
   printk(KERN_INFO "reading... buf=%s\n", buf);
-  proc_buf[0] = {"abcded"};
   return size;
 }
 
@@ -157,6 +164,8 @@ static unsigned int payload_dump(unsigned int hooknum,
     if(!ip){
       printk(KERN_WARNING "[DEBUG]ip header hook failed ");
     }
+
+
 
 
     /*-------------UDP------------------*/
