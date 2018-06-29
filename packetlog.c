@@ -54,7 +54,7 @@ MODULE_LICENSE("GPL");
 // /fs/proc/internal.h lines-31
 struct proc_dir_entry *proc_entry;
 
-static char proc_buf[LOG_BUFFER_SIZE];
+const char proc_buf[LOG_BUFFER_SIZE]="TinnkoUnnko";
 //main module
 struct ethhdr *mac;
 struct iphdr *ip;
@@ -76,26 +76,29 @@ static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 static int proc_open(struct inode *node, struct file *fp){
   printk("open\n");
-  return 1;
+  return 0;
 }
 
 static ssize_t proc_read(struct file *fp, char __user *buf, size_t size, loff_t *off)
 {
-  int buf_size;
 
-  if(size < proc_buf){
+
+/*  int buf_size;
+
+  if(size < *proc_buf){
     buf_size = size;
   } else{
     buf_size = sizeof(proc_buf);
   }
-  strcopy(proc_buf, "tinnko");
+  //strcpy(proc_buf, "tinnko");
+  printk("[DEBUG]: kikenn ");
   memcpy(buf, proc_buf, buf_size);
-  printk(KERN_INFO "reading... buf=%s\n", buf);
-  return size;
+  */printk(KERN_INFO "reading... buf=\n");
+  return 0;
 }
 
 
-static ssize_t proc_write(struct file *fp, const char *buf, size_t size, loff_t *off)
+static long proc_write(struct file *fp, const char *buf, size_t size, loff_t *off)
 {
   printk("write\n");
   return size;
