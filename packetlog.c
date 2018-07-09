@@ -46,6 +46,61 @@ MODULE_AUTHOR("yfujieda");
 MODULE_DESCRIPTION("packet dump");
 MODULE_LICENSE("GPL");
 
+
+// this module is in production
+
+#define buf_size PAGE_SIZE
+
+#define buf_next(n) (((n) + 1) % buffer_size)
+
+struct ring_buf{
+
+  int queue[buffer_size];
+  int head;
+  int tail;
+};
+
+typedef struct ring_buf ring_t;
+
+/***
+this func is log_buffer init func
+***/
+
+static void buf_init(ring_t *q)
+{
+  q->head = 0;
+  q->tail = 0;
+}
+
+/***
+if buff is empty return 1
+ not empty return 0
+***/
+
+int buf_emp(ring_t q)
+{
+  return(q.head == q.tail)
+}
+
+
+
+int buf_push(ring_t *q , int data)
+{
+  if(buffer_next(q->tail) == q->head)
+  return -1
+
+  q->queue[q->tail] = data;
+
+  q->tail = buf_next(q->tail);
+
+  return 0;
+}
+
+
+
+
+
+
 #define PROC_NAME "driver/pdump_prot"
 #define MAX_FILE_LENGTH PAGE_SIZE
 #define LOG_BUFFER_SIZE 16392
@@ -54,7 +109,7 @@ MODULE_LICENSE("GPL");
 // /fs/proc/internal.h lines-31
 struct proc_dir_entry *proc_entry;
 
-const char proc_buf[LOG_BUFFER_SIZE]="TinnkoUnnko";
+const char proc_buf[LOG_BUFFER_SIZE];
 //main module
 struct ethhdr *mac;
 struct iphdr *ip;
