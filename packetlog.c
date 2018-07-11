@@ -1,14 +1,14 @@
 /*
- * my linux kernel version is 4.4.0 v127
- * target android hammerhead kernel version 3.3.0
- * android packet dump module
- */
+* my linux kernel version is 4.4.0 v127
+* target android hammerhead kernel version 3.3.0
+* android packet dump module
+*/
 
 /*
- * this module dump all packet
- * dump data export proc file (/drivers/pdump_prot)
- * Latest update 2018, 6, 20
- */
+* this module dump all packet
+* dump data export proc file (/drivers/pdump_prot)
+* Latest update 2018, 6, 20
+*/
 
 #include <linux/module.h>	/* Needed by all modules */
 #include <linux/kernel.h>	/* Needed for KERN_INFO */
@@ -74,7 +74,7 @@ static void buf_init(ring_t *q)
 
 /***
 if buff is empty return 1
- not empty return 0
+not empty return 0
 ***/
 
 int buf_emp(ring_t q)
@@ -96,7 +96,20 @@ int buf_push(ring_t *q , int data)
   return 0;
 }
 
+int buf_pop(ring_t *q, int *data)
+{
 
+  if(q->head == q->tail) {
+    return(-1);
+  }
+  /* キューからデータを取得する */
+  *data = q->queue[q->head];
+
+  /* 次のデータ取得位置を決定する */
+  q->head = buf_next(q->head);
+
+  return(0);
+}
 
 
 
@@ -138,18 +151,18 @@ static ssize_t proc_read(struct file *fp, char __user *buf, size_t size, loff_t 
 {
 
 
-/*  int buf_size;
+  /*  int buf_size;
 
   if(size < *proc_buf){
-    buf_size = size;
-  } else{
-    buf_size = sizeof(proc_buf);
-  }
-  //strcpy(proc_buf, "tinnko");
-  printk("[DEBUG]: kikenn ");
-  memcpy(buf, proc_buf, buf_size);
-  */printk(KERN_INFO "reading... buf=\n");
-  return 0;
+  buf_size = size;
+} else{
+buf_size = sizeof(proc_buf);
+}
+//strcpy(proc_buf, "tinnko");
+printk("[DEBUG]: kikenn ");
+memcpy(buf, proc_buf, buf_size);
+*/printk(KERN_INFO "reading... buf=\n");
+return 0;
 }
 
 
@@ -240,6 +253,7 @@ static unsigned int payload_dump(unsigned int hooknum,
 
     /*--------------TCP-----------------*/
 
+        }
 
     if(ip->protocol == 6) {
       tcp = (struct tcphdr *)ipip_hdr(skb);
