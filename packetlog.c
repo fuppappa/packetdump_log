@@ -41,6 +41,7 @@
 #include <linux/stat.h>
 //#include <linux/string.h>
 //#include <asm/uaccess.h>
+#include <asm/page.h>
 
 MODULE_AUTHOR("yfujieda");
 MODULE_DESCRIPTION("packet dump");
@@ -49,22 +50,21 @@ MODULE_LICENSE("GPL");
 
 // this module is in production
 
-#define buf_size PAGE_SIZE
-
-#define buf_next(n) (((n) + 1) % buffer_size)
+#define ring_size PAGE_SIZE
 
 struct ring_buf{
-
-  int queue[buffer_size];
-  int head;
-  int tail;
+  uint8_t *queue;
+  size_t head;
+  size_t tail;
+  size_t buf_size;
 };
 
 typedef struct ring_buf ring_t;
 
-/***
-this func is log_buffer init func
-***/
+/*
+*this func is log_buf init func
+*first time only
+*/
 
 static void buf_init(ring_t *q)
 {
@@ -72,41 +72,58 @@ static void buf_init(ring_t *q)
   q->tail = 0;
 }
 
-/***
-if buff is empty return 1
-not empty return 0
-***/
-
-int buf_emp(ring_t q)
+void buf_next(ring_t *q, char *in_data)
 {
-  return(q.head == q.tail)
+
+  int used = q->tail - q->queue;
+  if(used)
+
+  q->tail = (sizeof(in_data)+used) % sizeof(q->queue);
+}
+
+/*
+*if buff is empty return 1
+*not empty return 0
+*/
+
+unsigned int buf_emp(ring_t q)
+{
+  return(q.tail == q.head);
+}
+
+/*
+* if buffer is full return 1
+*/
+
+unsigned int buf_full(ring_t q)
+{
+return(q.tail+1 == q.head);
 }
 
 
-
-int buf_push(ring_t *q , int data)
+int enqueue(ring_t *q , char *in_data)
 {
-  if(buffer_next(q->tail) == q->head)
-  return -1
+  if(buf_full(*q))
+  return -1;
 
-  q->queue[q->tail] = data;
+  q->queue[q->head] = *data;
 
-  q->tail = buf_next(q->tail);
+  q->head = buf_next(q);
 
   return 0;
 }
 
-int buf_pop(ring_t *q, int *data)
+int dequeue(ring_t *q, int *out_data)
 {
 
-  if(q->head == q->tail) {
+  if(q && out_data && !buf_empty(*cbuf)) {
     return(-1);
   }
   /* キューからデータを取得する */
-  *data = q->queue[q->head];
+  *out_data = q->queue[q->head];
 
   /* 次のデータ取得位置を決定する */
-  q->head = buf_next(q->head);
+  q->head = buf_next(q);
 
   return(0);
 }
@@ -141,6 +158,12 @@ static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 ///fs/proc/internal.h
 
+/*
+*about procfile system func
+*proc_open is open handler
+*proc_read is read handler... write handler ..etc
+*file_operations is several systemcall handler
+*/
 
 static int proc_open(struct inode *node, struct file *fp){
   printk("open\n");
@@ -149,7 +172,6 @@ static int proc_open(struct inode *node, struct file *fp){
 
 static ssize_t proc_read(struct file *fp, char __user *buf, size_t size, loff_t *off)
 {
-
 
   /*  int buf_size;
 
@@ -230,6 +252,8 @@ static unsigned int payload_dump(unsigned int hooknum,
   int (*okfn)(struct sk_buff*))
 
   {
+    skb
+
     ip = (struct iphdr *)ip_hdr(skb);
 
     if(!ip){
@@ -253,27 +277,27 @@ static unsigned int payload_dump(unsigned int hooknum,
 
     /*--------------TCP-----------------*/
 
-        }
-
-    if(ip->protocol == 6) {
-      tcp = (struct tcphdr *)ipip_hdr(skb);
 
 
-      if(ntohs(tcp->source) == 23 || ntohs(tcp->dest) == 23){
-        printk(KERN_ALERT "----TELNET-------------\n");
-      }
-      if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
-        printk(KERN_ALERT "----HTTP-------------\n");
+  if(ip->protocol == 6) {
+    tcp = (struct tcphdr *)ipip_hdr(skb);
 
-      }
-      if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
-        printk(KERN_ALERT "----HTTPS-------------\n");
-      }
+
+    if(ntohs(tcp->source) == 23 || ntohs(tcp->dest) == 23){
+      printk(KERN_ALERT "----TELNET-------------\n");
+    }
+    if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
+      printk(KERN_ALERT "----HTTP-------------\n");
 
     }
+    if(ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443){
+      printk(KERN_ALERT "----HTTPS-------------\n");
+    }
 
-    return NF_ACCEPT;
   }
+
+  return NF_ACCEPT;
+}
 
 
 
