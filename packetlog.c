@@ -7,13 +7,13 @@
 /*
 * this module dump all packet
 * dump data export proc file (/drivers/pdump_prot)
-* Latest update 2018, 6, 20
+* Latest update 2018, 7, 11
 */
 
 #include <linux/module.h>	/* Needed by all modules */
 #include <linux/kernel.h>	/* Needed for KERN_INFO */
 #include <linux/init.h>		/* Needed for the macros */
-#include <linux/string.h> /* Needed for strcat */
+#include <linux/string.h> /* Needed for strcat, memcpy */
 #include <linux/vmalloc.h> /* Needed for vmalloc func */
 #include <linux/skbuff.h> /* Needed for skbuff struct */
 #include <linux/netfilter.h> /* Needed for hook　function */
@@ -41,95 +41,10 @@
 #include <linux/stat.h>
 //#include <linux/string.h>
 //#include <asm/uaccess.h>
-#include <asm/page.h>
 
 MODULE_AUTHOR("yfujieda");
 MODULE_DESCRIPTION("packet dump");
 MODULE_LICENSE("GPL");
-
-
-// this module is in production
-
-#define ring_size PAGE_SIZE
-
-struct ring_buf{
-  uint8_t *queue;
-  size_t head;
-  size_t tail;
-  size_t buf_size;
-};
-
-typedef struct ring_buf ring_t;
-
-/*
-*this func is log_buf init func
-*first time only
-*/
-
-static void buf_init(ring_t *q)
-{
-  q->head = 0;
-  q->tail = 0;
-}
-
-void buf_next(ring_t *q, char *in_data)
-{
-
-  int used = q->tail - q->queue;
-  if(used)
-
-  q->tail = (sizeof(in_data)+used) % sizeof(q->queue);
-}
-
-/*
-*if buff is empty return 1
-*not empty return 0
-*/
-
-unsigned int buf_emp(ring_t q)
-{
-  return(q.tail == q.head);
-}
-
-/*
-* if buffer is full return 1
-*/
-
-unsigned int buf_full(ring_t q)
-{
-return(q.tail+1 == q.head);
-}
-
-
-int enqueue(ring_t *q , char *in_data)
-{
-  if(buf_full(*q))
-  return -1;
-
-  q->queue[q->head] = *data;
-
-  q->head = buf_next(q);
-
-  return 0;
-}
-
-int dequeue(ring_t *q, int *out_data)
-{
-
-  if(q && out_data && !buf_empty(*cbuf)) {
-    return(-1);
-  }
-  /* キューからデータを取得する */
-  *out_data = q->queue[q->head];
-
-  /* 次のデータ取得位置を決定する */
-  q->head = buf_next(q);
-
-  return(0);
-}
-
-
-
 
 #define PROC_NAME "driver/pdump_prot"
 #define MAX_FILE_LENGTH PAGE_SIZE
@@ -158,12 +73,6 @@ static char *months[12] ={"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 ///fs/proc/internal.h
 
-/*
-*about procfile system func
-*proc_open is open handler
-*proc_read is read handler... write handler ..etc
-*file_operations is several systemcall handler
-*/
 
 static int proc_open(struct inode *node, struct file *fp){
   printk("open\n");
@@ -172,6 +81,7 @@ static int proc_open(struct inode *node, struct file *fp){
 
 static ssize_t proc_read(struct file *fp, char __user *buf, size_t size, loff_t *off)
 {
+
 
   /*  int buf_size;
 
@@ -252,14 +162,14 @@ static unsigned int payload_dump(unsigned int hooknum,
   int (*okfn)(struct sk_buff*))
 
   {
-    skb
 
+    buf_put(&queue, skb->head, skb->tail);
+    
     ip = (struct iphdr *)ip_hdr(skb);
 
     if(!ip){
       printk(KERN_WARNING "[DEBUG]ip header hook failed ");
     }
-
 
 
 
@@ -277,7 +187,7 @@ static unsigned int payload_dump(unsigned int hooknum,
 
     /*--------------TCP-----------------*/
 
-
+  }
 
   if(ip->protocol == 6) {
     tcp = (struct tcphdr *)ipip_hdr(skb);
@@ -301,32 +211,34 @@ static unsigned int payload_dump(unsigned int hooknum,
 
 
 
-  static int __init init_main(void)
-  {
-    int err;
-    nfhook.hook     = payload_dump;
-    nfhook.hooknum  = 0;
-    nfhook.pf       = PF_INET;
-    nfhook.priority = NF_IP_PRI_FIRST;
-    nf_register_hook(&nfhook);
-    timestamp();
+static int __init init_main(void)
+{
+  int err;
+  ring_t queue;
+  buf_init(queue);
+  nfhook.hook     = payload_dump;
+  nfhook.hooknum  = 0;
+  nfhook.pf       = PF_INET;
+  nfhook.priority = NF_IP_PRI_FIRST;
+  nf_register_hook(&nfhook);
+  timestamp();
 
-    err = proc_create_entry();
+  err = proc_create_entry();
 
-    if(err == 0){
-      printk("create proc entry is succeed\n");
-    }
-    return err;
+  if(err == 0){
+    printk("create proc entry is succeed\n");
   }
+  return err;
+}
 
-  static void __exit cleanup_main(void)
-  {
-    nf_unregister_hook(&nfhook);
-    printk("refused packetdump_mod");
-    printk(KERN_INFO "%s\n", __FUNCTION__);
-    proc_close();
+static void __exit cleanup_main(void)
+{
+  nf_unregister_hook(&nfhook);
+  printk("refused packetdump_mod");
+  printk(KERN_INFO "%s\n", __FUNCTION__);
+  proc_close();
 
-  }
+}
 
-  module_init(init_main);
-  module_exit(cleanup_main);
+module_init(init_main);
+module_exit(cleanup_main);
